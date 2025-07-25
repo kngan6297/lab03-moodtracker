@@ -130,8 +130,10 @@ jobs:
               ps aux | grep "mood-tracker" | grep -v grep
               echo "📝 Recent logs:"
               tail -10 moodtracker.log
+              echo "🎉 Deployment completed successfully!"
             else
               echo "❌ Application failed to start"
+              
               echo "::group::📜 Full application log"
               cat moodtracker.log
               echo "::endgroup::"
@@ -148,11 +150,5 @@ jobs:
               netstat -tulpn | grep :808 || echo "No processes on ports 8080/8081"
               echo "::endgroup::"
               
-              echo "❌ Application failed to start"
-              cat moodtracker.log
-              echo "🔍 Checking for errors..."
-              grep -i error moodtracker.log || echo "No explicit errors found in log"
-              false  # make GitHub Actions fail correctly
+              false  # ⛔ Chỉ fail nếu thật sự fail
             fi
-
-            echo "🎉 Deployment completed successfully!"
