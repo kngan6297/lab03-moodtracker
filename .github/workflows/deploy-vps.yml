@@ -100,24 +100,34 @@ jobs:
               exit 1
             }
 
-            # Start application with production profile
-            echo "🚀 Starting application with production profile..."
-            nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod > moodtracker.log 2>&1 &
+            # Detect available port
+            PORT=8080
+            if lsof -i:$PORT -t >/dev/null; then
+              echo "⚠️ Port $PORT is in use. Trying 8081 instead..."
+              PORT=8081
+              if lsof -i:$PORT -t >/dev/null; then
+                echo "❌ Both ports 8080 and 8081 are occupied. Aborting deployment."
+                exit 1
+              fi
+            fi
+
+            # Start application
+            echo "🚀 Starting application on port $PORT with production profile..."
+            nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --server.port=$PORT --spring.profiles.active=prod > moodtracker.log 2>&1 &
 
             # Get the PID
             APP_PID=$!
             echo "📝 Application PID: $APP_PID"
 
-            # Wait for application to start
+            # Wait and verify
             echo "⏳ Waiting for application to start..."
             sleep 15
 
-            # Check if application is running
-            if pgrep -f mood-tracker > /dev/null; then
+            if pgrep -f "mood-tracker.*$PORT" > /dev/null; then
               echo "✅ Application deployed successfully!"
-              echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:8080"
+              echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:$PORT"
               echo "📊 Process info:"
-              ps aux | grep mood-tracker | grep -v grep
+              ps aux | grep "mood-tracker" | grep -v grep
               echo "📝 Recent logs:"
               tail -10 moodtracker.log
             else
