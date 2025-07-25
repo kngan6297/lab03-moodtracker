@@ -5,115 +5,92 @@ on:
     branches: [master]
   workflow_dispatch:
 
+env:
+  APP_NAME: moodtracker
+  JAR_FILE: mood-tracker-0.0.1-SNAPSHOT.jar
+  DEPLOY_DIR: /var/www/lab03-moodtracker
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: ☕ Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
           cache: maven
 
-      - name: Cache Maven packages
+      - name: 📦 Cache Maven packages
         uses: actions/cache@v4
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: Build with Maven
-        run: mvn clean compile
-
-      - name: Run tests
-        run: mvn test
-
-      - name: Build JAR
+      - name: 🧱 Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Copy JAR to VPS
+      - name: 🔐 Check secrets
+        run: |
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then
+            echo "❌ VPS_HOST secret is not configured"
+            exit 1
+          fi
+          if [ -z "${{ secrets.VPS_USERNAME }}" ]; then
+            echo "❌ VPS_USERNAME secret is not configured"
+            exit 1
+          fi
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "❌ VPS_SSH_KEY secret is not configured"
+            exit 1
+          fi
+          if [ -z "${{ secrets.VPS_PORT }}" ]; then
+            echo "❌ VPS_PORT secret is not configured"
+            exit 1
+          fi
+          echo "✅ All secrets are configured"
+
+      - name: 📤 Upload JAR to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          source: "target/mood-tracker-0.0.1-SNAPSHOT.jar"
-          target: "/var/www/lab03-moodtracker/target/"
+          source: "target/${{ env.JAR_FILE }}"
+          target: "${{ env.DEPLOY_DIR }}/target/"
 
-      - name: Test SSH Connection
+      - name: 🚀 Deploy via SSH with PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          timeout: 5s
-          command_timeout: 10s
-          debug: true
           script: |
-            echo "Hello from VPS"
+            echo "🔧 Preparing environment..."
+            mkdir -p ${{ env.DEPLOY_DIR }}/target
+            cd ${{ env.DEPLOY_DIR }}
 
-      - name: Stop and Cleanup
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          timeout: 15s
-          command_timeout: 1m
-          debug: true
-          script: |
-            echo "🛑 Stopping existing application..."
-            pkill -f mood-tracker || echo "No existing application found"
-            echo "✅ Cleanup completed"
-
-      - name: Prepare Deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          timeout: 15s
-          command_timeout: 1m
-          debug: true
-          script: |
-            echo "📁 Creating directories..."
-            mkdir -p /var/www/lab03-moodtracker/target
-            cd /var/www/lab03-moodtracker
-
-            if [ ! -f "target/mood-tracker-0.0.1-SNAPSHOT.jar" ]; then
-              echo "❌ JAR file not found: target/mood-tracker-0.0.1-SNAPSHOT.jar"
-              exit 1
+            # Cài PM2 nếu chưa có
+            if ! command -v pm2 &> /dev/null; then
+              echo "📦 Installing PM2..."
+              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+              sudo apt install -y nodejs
+              sudo npm install -g pm2
             fi
 
-            echo "🔐 Setting permissions..."
-            chmod +x target/mood-tracker-0.0.1-SNAPSHOT.jar
-            echo "✅ Preparation completed"
+            # Dừng app cũ (nếu có)
+            pm2 delete ${{ env.APP_NAME }} || echo "⚠️ App not running yet"
 
-      - name: Deploy Application
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          timeout: 15s
-          command_timeout: 2m
-          debug: true
-          script: |
-            cd /var/www/lab03-moodtracker
+            # Chạy app mới
+            echo "🚀 Starting new app..."
+            pm2 start "java -jar target/${{ env.JAR_FILE }} --spring.profiles.active=prod" --name ${{ env.APP_NAME }}
+            pm2 save
 
-            echo "🚀 Starting application on port 8080..."
-            nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --server.port=8080 --spring.profiles.active=prod > moodtracker.log 2>&1 &
-
-            echo "📝 Application started in background"
-            echo "✅ Deployment completed!"
-            echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:8080"
+            echo "✅ App deployed and managed by PM2!"
