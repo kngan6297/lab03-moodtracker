@@ -53,13 +53,11 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          timeout: 10s
-          command_timeout: 30s
+          timeout: 5s
+          command_timeout: 10s
+          debug: true
           script: |
-            echo "🔍 Testing SSH connection..."
-            whoami
-            pwd
-            echo "✅ SSH connection successful"
+            echo "Hello from VPS"
 
       - name: Stop and Cleanup
         uses: appleboy/ssh-action@v1.0.3
@@ -70,6 +68,7 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           timeout: 15s
           command_timeout: 1m
+          debug: true
           script: |
             echo "🛑 Stopping existing application..."
             pkill -f mood-tracker || echo "No existing application found"
@@ -84,6 +83,7 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           timeout: 15s
           command_timeout: 1m
+          debug: true
           script: |
             echo "📁 Creating directories..."
             mkdir -p /var/www/lab03-moodtracker/target
@@ -107,6 +107,7 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           timeout: 15s
           command_timeout: 2m
+          debug: true
           script: |
             cd /var/www/lab03-moodtracker
 
