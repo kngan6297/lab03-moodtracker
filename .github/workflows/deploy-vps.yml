@@ -36,6 +36,16 @@ jobs:
       - name: Build JAR
         run: mvn clean package -DskipTests
 
+      - name: Copy JAR to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "target/mood-tracker-0.0.1-SNAPSHOT.jar"
+          target: "/var/www/lab03-moodtracker/target/"
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -43,8 +53,6 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          source: "target/mood-tracker-0.0.1-SNAPSHOT.jar"
-          target: "/tmp/"
           script: |
             # Stop existing application
             pkill -f mood-tracker || true
@@ -55,11 +63,11 @@ jobs:
               cp -r /var/www/lab03-moodtracker /var/www/lab03-moodtracker.backup.$(date +%Y%m%d_%H%M%S)
             fi
 
+            # Create target directory if it doesn't exist
+            mkdir -p /var/www/lab03-moodtracker/target
+
             # Update application files
             cd /var/www/lab03-moodtracker
-
-            # Copy new JAR file
-            cp /tmp/mood-tracker-0.0.1-SNAPSHOT.jar target/
 
             # Set proper permissions
             chmod +x target/mood-tracker-0.0.1-SNAPSHOT.jar
