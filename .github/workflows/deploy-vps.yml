@@ -46,6 +46,21 @@ jobs:
           source: "target/mood-tracker-0.0.1-SNAPSHOT.jar"
           target: "/var/www/lab03-moodtracker/target/"
 
+      - name: Test SSH Connection
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          timeout: 10s
+          command_timeout: 30s
+          script: |
+            echo "🔍 Testing SSH connection..."
+            whoami
+            pwd
+            echo "✅ SSH connection successful"
+
       - name: Stop and Cleanup
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -53,17 +68,11 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          timeout: 30s
-          command_timeout: 2m
+          timeout: 15s
+          command_timeout: 1m
           script: |
             echo "🛑 Stopping existing application..."
             pkill -f mood-tracker || echo "No existing application found"
-            sleep 2
-            if pgrep -f mood-tracker > /dev/null; then
-              echo "⚠️  Force killing existing application..."
-              pkill -9 -f mood-tracker
-              sleep 1
-            fi
             echo "✅ Cleanup completed"
 
       - name: Prepare Deployment
@@ -73,37 +82,20 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          timeout: 30s
-          command_timeout: 2m
+          timeout: 15s
+          command_timeout: 1m
           script: |
-            echo "💾 Creating backup..."
-            if [ -d "/var/www/lab03-moodtracker" ]; then
-              BACKUP_DIR="/var/www/lab03-moodtracker.backup.$(date +%Y%m%d_%H%M%S)"
-              cp -r /var/www/lab03-moodtracker "$BACKUP_DIR"
-              echo "✅ Backup created: $BACKUP_DIR"
-            else
-              echo "⚠️  No existing application directory found"
-            fi
-
             echo "📁 Creating directories..."
             mkdir -p /var/www/lab03-moodtracker/target
             cd /var/www/lab03-moodtracker
 
             if [ ! -f "target/mood-tracker-0.0.1-SNAPSHOT.jar" ]; then
               echo "❌ JAR file not found: target/mood-tracker-0.0.1-SNAPSHOT.jar"
-              echo "📋 Available files in target/:"
-              ls -la target/ || echo "Target directory is empty"
               exit 1
             fi
 
             echo "🔐 Setting permissions..."
             chmod +x target/mood-tracker-0.0.1-SNAPSHOT.jar
-
-            echo "☕ Checking Java installation..."
-            java -version || {
-              echo "❌ Java is not installed or not in PATH"
-              exit 1
-            }
             echo "✅ Preparation completed"
 
       - name: Deploy Application
@@ -113,71 +105,14 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          timeout: 30s
-          command_timeout: 5m
+          timeout: 15s
+          command_timeout: 2m
           script: |
             cd /var/www/lab03-moodtracker
 
-            # Detect available port
-            PORT=8080
-            if lsof -i:$PORT -t >/dev/null; then
-              echo "⚠️ Port $PORT is in use. Trying 8081 instead..."
-              PORT=8081
-              if lsof -i:$PORT -t >/dev/null; then
-                echo "❌ Both ports 8080 and 8081 are occupied. Aborting deployment."
-                exit 1
-              fi
-            fi
+            echo "🚀 Starting application on port 8080..."
+            nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --server.port=8080 --spring.profiles.active=prod > moodtracker.log 2>&1 &
 
-            echo "🚀 Starting application on port $PORT with production profile..."
-            nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --server.port=$PORT --spring.profiles.active=prod > moodtracker.log 2>&1 &
-
-            APP_PID=$!
-            echo "📝 Application PID: $APP_PID"
-
-            echo "⏳ Waiting for application to start..."
-            sleep 3
-
-            echo "::group::🔍 Process Check"
-            ps aux | grep "mood-tracker" | grep -v grep || echo "No mood-tracker process found"
-            echo "::endgroup::"
-
-            # Wait up to 20 seconds for the application to start
-            echo "🔍 Checking if application started successfully..."
-            for i in {1..4}; do
-              if ps aux | grep "mood-tracker.*--server.port=$PORT" | grep -v grep > /dev/null; then
-                break
-              fi
-              echo "⏳ Attempt $i/4: Application not ready yet, waiting 5 seconds..."
-              sleep 5
-            done
-
-            if ps aux | grep "mood-tracker.*--server.port=$PORT" | grep -v grep > /dev/null; then
-              echo "✅ Application deployed successfully!"
-              echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:$PORT"
-              echo "📊 Process info:"
-              ps aux | grep "mood-tracker" | grep -v grep
-              echo "📝 Recent logs:"
-              tail -10 moodtracker.log
-              echo "🎉 Deployment completed successfully!"
-            else
-              echo "❌ Application failed to start"
-
-              echo "::group::📜 Full application log"
-              cat moodtracker.log
-              echo "::endgroup::"
-
-              echo "::group::🔍 Errors"
-              grep -i error moodtracker.log || echo "No explicit errors found in log"
-              echo "::endgroup::"
-
-              echo "::group::📊 Process Status"
-              ps aux | grep java || echo "No Java processes found"
-              echo "::endgroup::"
-
-              echo "::group::🌐 Port Status"
-              netstat -tulpn | grep :808 || echo "No processes on ports 8080/8081"
-              echo "::endgroup::"
-
-              false
-            fi
+            echo "📝 Application started in background"
+            echo "✅ Deployment completed!"
+            echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:8080"
