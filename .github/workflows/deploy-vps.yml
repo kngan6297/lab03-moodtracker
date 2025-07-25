@@ -132,11 +132,27 @@ jobs:
               tail -10 moodtracker.log
             else
               echo "❌ Application failed to start"
-              echo "📝 Full application log:"
+              echo "::group::📜 Full application log"
+              cat moodtracker.log
+              echo "::endgroup::"
+              
+              echo "::group::🔍 Errors"
+              grep -i error moodtracker.log || echo "No explicit errors found in log"
+              echo "::endgroup::"
+              
+              echo "::group::📊 Process Status"
+              ps aux | grep java || echo "No Java processes found"
+              echo "::endgroup::"
+              
+              echo "::group::🌐 Port Status"
+              netstat -tulpn | grep :808 || echo "No processes on ports 8080/8081"
+              echo "::endgroup::"
+              
+              echo "❌ Application failed to start"
               cat moodtracker.log
               echo "🔍 Checking for errors..."
               grep -i error moodtracker.log || echo "No explicit errors found in log"
-              exit 1
+              false  # make GitHub Actions fail correctly
             fi
 
             echo "🎉 Deployment completed successfully!"
