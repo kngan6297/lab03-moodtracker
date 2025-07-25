@@ -54,19 +54,16 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            # Stop existing application
             echo "🛑 Stopping existing application..."
             pkill -f mood-tracker || echo "No existing application found"
             sleep 5
 
-            # Check if process is still running
             if pgrep -f mood-tracker > /dev/null; then
               echo "⚠️  Force killing existing application..."
               pkill -9 -f mood-tracker
               sleep 3
             fi
 
-            # Backup existing application
             echo "💾 Creating backup..."
             if [ -d "/var/www/lab03-moodtracker" ]; then
               BACKUP_DIR="/var/www/lab03-moodtracker.backup.$(date +%Y%m%d_%H%M%S)"
@@ -76,12 +73,10 @@ jobs:
               echo "⚠️  No existing application directory found"
             fi
 
-            # Create target directory if it doesn't exist
             echo "📁 Creating directories..."
             mkdir -p /var/www/lab03-moodtracker/target
             cd /var/www/lab03-moodtracker
 
-            # Check if JAR file exists
             if [ ! -f "target/mood-tracker-0.0.1-SNAPSHOT.jar" ]; then
               echo "❌ JAR file not found: target/mood-tracker-0.0.1-SNAPSHOT.jar"
               echo "📋 Available files in target/:"
@@ -89,11 +84,9 @@ jobs:
               exit 1
             fi
 
-            # Set proper permissions
             echo "🔐 Setting permissions..."
             chmod +x target/mood-tracker-0.0.1-SNAPSHOT.jar
 
-            # Check Java installation
             echo "☕ Checking Java installation..."
             java -version || {
               echo "❌ Java is not installed or not in PATH"
@@ -111,15 +104,12 @@ jobs:
               fi
             fi
 
-            # Start application
             echo "🚀 Starting application on port $PORT with production profile..."
             nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --server.port=$PORT --spring.profiles.active=prod > moodtracker.log 2>&1 &
 
-            # Get the PID
             APP_PID=$!
             echo "📝 Application PID: $APP_PID"
 
-            # Wait and verify
             echo "⏳ Waiting for application to start..."
             sleep 15
 
@@ -133,22 +123,22 @@ jobs:
               echo "🎉 Deployment completed successfully!"
             else
               echo "❌ Application failed to start"
-              
+
               echo "::group::📜 Full application log"
               cat moodtracker.log
               echo "::endgroup::"
-              
+
               echo "::group::🔍 Errors"
               grep -i error moodtracker.log || echo "No explicit errors found in log"
               echo "::endgroup::"
-              
+
               echo "::group::📊 Process Status"
               ps aux | grep java || echo "No Java processes found"
               echo "::endgroup::"
-              
+
               echo "::group::🌐 Port Status"
               netstat -tulpn | grep :808 || echo "No processes on ports 8080/8081"
               echo "::endgroup::"
-              
-              false  # ⛔ Chỉ fail nếu thật sự fail
+
+              false
             fi
