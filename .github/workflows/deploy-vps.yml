@@ -114,10 +114,10 @@ jobs:
             sleep 15
 
             echo "::group::🔍 Process Check"
-            ps aux | grep mood-tracker | grep -v grep || echo "No mood-tracker process found"
+            ps aux | grep "mood-tracker" | grep -v grep || echo "No mood-tracker process found"
             echo "::endgroup::"
 
-            if pgrep -f "java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar" > /dev/null; then
+            if ps aux | grep "mood-tracker.*--server.port=$PORT" | grep -v grep > /dev/null; then
               echo "✅ Application deployed successfully!"
               echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:$PORT"
               echo "📊 Process info:"
