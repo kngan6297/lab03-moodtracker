@@ -113,7 +113,11 @@ jobs:
             echo "⏳ Waiting for application to start..."
             sleep 15
 
-            if pgrep -f "mood-tracker.*$PORT" > /dev/null; then
+            echo "::group::🔍 Process Check"
+            ps aux | grep mood-tracker | grep -v grep || echo "No mood-tracker process found"
+            echo "::endgroup::"
+
+            if pgrep -f "java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar" > /dev/null; then
               echo "✅ Application deployed successfully!"
               echo "🌐 Access at: http://${{ secrets.VPS_HOST }}:$PORT"
               echo "📊 Process info:"
