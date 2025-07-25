@@ -100,8 +100,8 @@ jobs:
               exit 1
             }
 
-            # Start application
-            echo "🚀 Starting application..."
+            # Start application with production profile
+            echo "🚀 Starting application with production profile..."
             nohup java -jar target/mood-tracker-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod > moodtracker.log 2>&1 &
 
             # Get the PID

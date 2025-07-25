@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/moodtracker
+    username: mooduser
+    password: yourpassword
+    driver-class-name: org.mariadb.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDBDialect
+        format_sql: false
+  
+  h2:
+    console:
+      enabled: false
+  
+  thymeleaf:
+    cache: true
+
+logging:
+  level:
+    org.springframework.web: INFO
+    org.hibernate: WARN 
